@@ -1,0 +1,38 @@
+{
+  "dag_id": "ecommerce_analytics_pipeline",
+  "schedule": "@daily",
+  "tasks": [
+    {
+      "id": "ingest_raw_orders",
+      "type": "ingest",
+      "template": "xlsx_to_duckdb_raw",
+      "params": {
+        "csv_path": "/home/error-ian/ETL_PROJECT/Prototype/Verse_0.2/data/1/online_retail_II.xlsx",
+        "target_table": "raw_orders",
+        "sheet_name": "Year 2009-2010"
+      }
+    },
+    {
+      "id": "clean_orders",
+      "type": "transform",
+      "template": "orders_cleaning",
+      "params": {
+        "source_table": "raw_orders",
+        "target_table": "stg_orders_cleaned"
+      }
+    },
+    {
+      "id": "compute_daily_sales",
+      "type": "transform",
+      "template": "daily_sales_kpis",
+      "params": {
+        "source_table": "stg_orders_cleaned",
+        "target_table": "fct_daily_sales",
+        "date_col": "invoice_date",
+        "order_id_col": "invoice_id",
+        "price_col": "unit_price",
+        "qty_col": "quantity"
+      }
+    }
+  ]
+}

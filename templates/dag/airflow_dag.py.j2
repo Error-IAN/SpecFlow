@@ -1,0 +1,62 @@
+from airflow import DAG
+# Fixed Import for Airflow 3.x
+from airflow.providers.standard.operators.python import PythonOperator
+from airflow.providers.standard.operators.bash import BashOperator 
+from datetime import datetime
+import duckdb
+import os
+
+# Absolute path to your project root
+PROJECT_ROOT = "/home/error-ian/ETL_PROJECT/Prototype/Verse_0.2/aedpa"
+DB_PATH = os.path.join(PROJECT_ROOT, "analytics.db")
+
+# --- 1. DEFINE THE MISSING FUNCTION ---
+def run_sql_file(file_name):
+    """Function to read and execute SQL via DuckDB"""
+    sql_path = os.path.join(PROJECT_ROOT, "generated/sql", file_name)
+    
+    print(f"Connecting to database at: {DB_PATH}")
+    conn = duckdb.connect(DB_PATH)
+    
+    with open(sql_path, 'r') as f:
+        sql = f.read()
+    
+    print(f"Executing SQL from: {file_name}")
+    conn.execute(sql)
+    conn.close()
+    print("Execution complete.")
+
+# --- 2. DEFINE THE DAG ---
+default_args = {
+    "owner": "aedpa",
+    "start_date": datetime(2025, 1, 1),
+    "retries": 1
+}
+
+with DAG(
+    dag_id="{{ dag_id }}",
+    default_args=default_args,
+    schedule="{{ schedule }}",
+    catchup=False
+) as dag:
+
+    {% for task in tasks %}
+    # Task: {{ task.id }}
+    {% if task.type == 'ingest' %}
+    {{ task.id }} = BashOperator(
+        task_id="{{ task.id }}",
+        bash_command=f"python {PROJECT_ROOT}/generated/ingest/{{ task.id }}.py"
+    )
+    {% elif task.type == 'transform' %}
+    {{ task.id }} = PythonOperator(
+        task_id="{{ task.id }}",
+        python_callable=run_sql_file,  # Now this function exists!
+        op_kwargs={"file_name": "{{ task.id }}.sql"}
+    )
+    {% endif %}
+    {% endfor %}
+
+    # Set dependencies automatically
+    {% for i in range(tasks|length - 1) %}
+    {{ tasks[i].id }} >> {{ tasks[i+1].id }}
+    {% endfor %}

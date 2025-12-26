@@ -1,0 +1,15 @@
+-- templates/transform/daily_sales_kpis.sql.j2
+
+CREATE OR REPLACE TABLE {{ target_table }} AS
+SELECT
+    CAST({{ date_col }} AS DATE) AS sales_date,
+    ROUND(SUM({{ qty_col }} * {{ price_col }}), 2) AS total_revenue,
+    COUNT(DISTINCT {{ order_id_col }}) AS order_count,
+    ROUND(
+        SUM({{ qty_col }} * {{ price_col }}) 
+        / NULLIF(COUNT(DISTINCT {{ order_id_col }}), 0), 
+        2
+    ) AS avg_order_value
+FROM {{ source_table }}
+GROUP BY sales_date
+ORDER BY sales_date DESC;
